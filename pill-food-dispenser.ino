@@ -290,7 +290,6 @@ void loop() {
 
 }
 
-
 // Animations
 void animator(int animNumber) {
   switch(animNumber) {
@@ -304,8 +303,6 @@ void animator(int animNumber) {
         display.setTextColor(SSD1306_WHITE);
         display.setCursor(48, 14);
         display.println("ASKINATOR");
-        //display.setCursor(48, 20);
-        //display.println("barjo|v1.0");
 
         display.display();
         delay(500);
@@ -317,12 +314,9 @@ void animator(int animNumber) {
         display.setTextColor(SSD1306_WHITE);
         display.setCursor(48, 14);
         display.println("ASKINATOR");
-        //display.setCursor(48, 20);
-        //display.println("barjo|v1.0");
 
         display.display();
         delay(500);
-        
       }
       break;
   }
@@ -340,11 +334,8 @@ bool getNTPtime(int sec) {
       delay(10);
     } while (((millis() - start) <= (1000 * sec)) && (timeinfo.tm_year < (2016 - 1900)));
     if (timeinfo.tm_year <= (2016 - 1900)) return false;  // the NTP call was not successful
-    //Serial.print("now ");  Serial.println(now);
     char time_output[30];
     strftime(time_output, 30, "%a  %d-%m-%y %T", localtime(&now));
-    //Serial.println(time_output);
-    //Serial.println();
   }
   return true;
 }
@@ -361,7 +352,6 @@ void showTime(tm localTime) {
   Serial.print(localTime.tm_min);
   Serial.print(':');
   Serial.print(localTime.tm_sec);*/
-
 
   // show local time (web)
   display.clearDisplay();
