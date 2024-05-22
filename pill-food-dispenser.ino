@@ -2,7 +2,7 @@
 * Name : Askinator
 * Description: Pill/food dispenser for animals
 * Author: BARJO
-* Version : 1.0
+* Version : 1.0.1
 */
 
 // Display
@@ -19,7 +19,7 @@
 #include <ESP32Servo.h>
 
 // define the number of bytes you want to access
-#define EEPROM_SIZE 2
+#define EEPROM_SIZE 512
 
 // Screen
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -27,6 +27,10 @@
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define OLED 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Wifi manager
+WiFiManager wm;
+bool wifiReset = false;
 
 // Time from the web
 const char* NTP_SERVER = "ch.pool.ntp.org";
@@ -37,7 +41,7 @@ time_t now;
 long unsigned lastNTPtime;
 unsigned long lastEntryTime;
 
-// Feed Time
+// Feed Time / pill time
 int feedTimeHour = 6;
 int feedTimeMinute = 30;
 String feedTime = String(feedTimeHour) + ":" + String(feedTimeMinute);
@@ -61,7 +65,6 @@ int displayMode = 0;
 Servo dogBowl;
 const int dogBowlPin = 2;
 static String rotationState = "Closed";
-//int dogBownlAngle = 0;
 
 // Icons
 // 'dog-1', 32x32px
@@ -87,20 +90,29 @@ const unsigned char dog_dog_2 [] PROGMEM = {
 	0xf0, 0x00, 0x0c, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 
+
 // Array of all bitmaps for convenience. (Total bytes used to store images in PROGMEM = 144)
-const int dog_allArray_LEN = 1;
-const unsigned char* dog_allArray[2] = {
+const int icons_allArray_LEN = 1;
+const unsigned char* icons_allArray[2] = {
 	dog_dog_1,
   dog_dog_2
 };
 
 // interrupt function
 void IRAM_ATTR isr() {
-  // change displayMode
-	if (displayMode < 2) {
-    displayMode++;
+  // check if config mode (both buttons pressed)
+  plusBtnState = digitalRead(plusBtn);
+  if (plusBtnState == HIGH) {
+    if (displayMode == 0) {
+      displayMode = 3;
+    }
   } else {
-    displayMode = 0;
+    // change displayMode
+    if (displayMode < 2) {
+      displayMode++;
+    } else {
+      displayMode = 0;
+    }
   }
 }
 
@@ -112,36 +124,31 @@ void setup() {
     delay(100);
   }
   display.begin(SSD1306_SWITCHCAPVCC, OLED);
+  display.clearDisplay();
+
+  // Wifi manager
+  bool res;
+
+  // set timout (seconds)
+  wm.setTimeout(180);
+
+
+  res = wm.autoConnect("Pills-dispenser","yourPassword"); // password protected ap
 
   // icon (animation)
   animator(1);
 
-  // Wifi manager
-  WiFiManager wm;
-  bool res;
-  //wm.resetSettings(); <- todo : reset button
-  res = wm.autoConnect("Pills-dispenser","yourPassword"); // password protected ap
-
   if(!res) {
-    Serial.println("Failed to connect");
-    // clear display
-    display.clearDisplay();
-
-    // Show error on screen
-    display.setTextSize(1); // Draw 2X-scale text
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
-    display.println("Error");
-    display.println("Wifi error");
-
-    // Show on display
-    display.display();
-    delay(10000);
-    display.clearDisplay();
+    Serial.println("Failed to connect and hit timeout -> will restart in 5 sec");
+    wifiReset = false;
+    showMessage(1);
+    //ESP.restart();
   } 
   else {
     //if you get here you have connected to the WiFi    
     Serial.println("Successfully connected to the Wifi");
+    wifiReset = false;
+    showMessage(0);
   }
 
   // Get Time on the internet
@@ -159,7 +166,11 @@ void setup() {
   lastEntryTime = millis();
 
   // EEPROM get Feed Time
-  EEPROM.begin(EEPROM_SIZE);
+  if (!EEPROM.begin(EEPROM_SIZE)) {
+    Serial.println("Error with EEPROM");
+  }
+  //EEPROM.put(20, 6);
+  //EEPROM.put(30, 30);
   EEPROM.get(20, feedTimeHour);
   EEPROM.get(30, feedTimeMinute);
   feedTime = String(feedTimeHour) + ":" + String(feedTimeMinute);
@@ -174,11 +185,15 @@ void setup() {
   // setup buttons
   pinMode(feedTimeBtn, OUTPUT);
   pinMode(plusBtn, OUTPUT);
-
+  // always give priority to the "mode" button
   attachInterrupt(feedTimeBtn, isr, RISING);
 }
 
 void loop() {
+  // if wifi reset -> display logo
+  if (wifiReset) {
+    showMessage(3);
+  }
 
   // check if reach feed time
   checkFeedTime(timeinfo);
@@ -199,8 +214,8 @@ void loop() {
 
       if (feedTimeChange) {
         // save hours and minutes in EEPROM
-        EEPROM.write(20, feedTimeHour);
-        EEPROM.write(30, feedTimeMinute);
+        EEPROM.put(20, feedTimeHour);
+        EEPROM.put(30, feedTimeMinute);
 
         boolean okCommit = EEPROM.commit();
         if (okCommit) {
@@ -279,6 +294,29 @@ void loop() {
       delay(1000);
 
     }
+
+  } else if (displayMode == 3) {
+    // config mode
+    Serial.println("config mode (let you reset wifi credentials)");
+    showMessage(2);
+    do {
+      // reset yes
+      plusBtnState = digitalRead(plusBtn);
+      if (plusBtnState == HIGH) {
+        wm.resetSettings();
+        wifiReset = true;
+        showMessage(3);
+        displayMode = 0;
+        ESP.restart();
+      }
+      // reset no
+      feedTimeBtnState = digitalRead(feedTimeBtn);
+      if (feedTimeBtnState == HIGH) {
+        showMessage(4);
+        displayMode = 0;
+      }
+    } while(displayMode == 3);
+    display.invertDisplay(0);
 
   } else {
     // show current time
@@ -502,4 +540,59 @@ String getRotationState() {
   return rotationState;
 }
 
+// display messages
+void showMessage(int msgNumber) {
+  String msgText = "Wifi connection";
+  String msgLegend = "SUCCESSFUL";
+  int breakTime = 1000;
+  display.invertDisplay(0);
+
+  switch(msgNumber) {
+    case 0:
+      msgText = "Wifi connection";
+      msgLegend = "SUCCESSFUL";
+      breakTime = 500;
+      break;
+    case 1:
+      msgText = "Wifi connection";
+      msgLegend = "ERROR";
+      breakTime = 5000;
+      break;
+    case 2:
+      display.invertDisplay(1);
+      msgText = "Reset wifi?";
+      msgLegend = "[NO] [YES]";
+      breakTime = 250;
+      break;
+    case 3:
+      display.invertDisplay(1);
+      msgText = "No more Wifi";
+      msgLegend = "Please reconnect";
+      breakTime = 5000;
+      break;
+    case 4:
+      display.invertDisplay(1);
+      msgText = "Canceled";
+      msgLegend = "";
+      breakTime = 2000;
+      break;
+  }
+
+  // display
+  // message
+  display.clearDisplay();
+  display.setTextSize(1); // Draw 2X-scale text
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 8);
+  display.print(msgText);
+
+  // legend
+  display.setTextSize(1); // Draw 2X-scale text
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 22);
+  display.println(msgLegend);
+
+  display.display();
+  delay(breakTime);
+}
 
