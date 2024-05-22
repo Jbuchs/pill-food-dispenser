@@ -1,6 +1,6 @@
 /*
 * Name : Askinator
-* Description: Pills dispenser
+* Description: Pill/food dispenser for animals
 * Author: BARJO
 * Version : 1.0
 */
@@ -158,14 +158,11 @@ void setup() {
   lastNTPtime = time(&now);
   lastEntryTime = millis();
 
-  // EEPROM get saved Feed Time
-  //EEPROM.write(2, 7);
-  //EEPROM.write(10, 30);
+  // EEPROM get Feed Time
   EEPROM.begin(EEPROM_SIZE);
   EEPROM.get(20, feedTimeHour);
   EEPROM.get(30, feedTimeMinute);
   feedTime = String(feedTimeHour) + ":" + String(feedTimeMinute);
-  //Serial.println(feedTime);
 
   // Servo motor
   dogBowl.setPeriodHertz(50); // PWM frequency for SG90
@@ -173,8 +170,6 @@ void setup() {
 
   // IR sensor
   pinMode(IRSensor, INPUT);
-  //rotationState = getRotationState();
-  //if (rotationState == "Open")
 
   // setup buttons
   pinMode(feedTimeBtn, OUTPUT);
@@ -184,8 +179,6 @@ void setup() {
 }
 
 void loop() {
-
-  //rotationState = getRotationState();
 
   // check if reach feed time
   checkFeedTime(timeinfo);
@@ -398,10 +391,6 @@ void showTime(tm localTime) {
   display.println("CURRENT TIME");
 
   display.display();
-  //currentTime = localTime.tm_hour + ":" + localTime.tm_min;
-  //Serial.print(" Day of Week ");
-  //if (localTime.tm_wday == 0)   Serial.println(7);
-  //else Serial.println(localTime.tm_wday);
 }
 
 void showFeedTime() {
@@ -486,17 +475,14 @@ void rotateBackward() {
 }
 
 void checkFeedTime(tm localTime) {
-  /*Serial.println(localTime.tm_hour);
-  Serial.print(":");
-  Serial.print(localTime.tm_min);*/
-
+  // if it's feed time (or pill time)
   if (localTime.tm_hour == feedTimeHour && localTime.tm_min == feedTimeMinute) {
     rotationState = getRotationState();
 
     if (rotationState == "Closed") {
       rotateForward();
 
-      // message for the dog
+      // message for the animal
       display.clearDisplay();
       display.setTextSize(2); // Draw 2X-scale text
       display.setTextColor(SSD1306_WHITE);
@@ -516,7 +502,7 @@ void checkFeedTime(tm localTime) {
 }
 
 String getRotationState() {
-  //rotationState = "Closed";
+  // check IR sensor
   IRState = digitalRead(IRSensor);
   if (IRState == LOW) {
     rotationState = "Closed";
