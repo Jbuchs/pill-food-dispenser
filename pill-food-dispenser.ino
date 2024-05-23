@@ -2,7 +2,7 @@
 * Name : Askinator
 * Description: Pill/food dispenser for animals
 * Author: BARJO
-* Version : 1.0.1
+* Version : 1.0.2
 */
 
 // Display
@@ -27,10 +27,6 @@
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define OLED 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
-// Wifi manager
-WiFiManager wm;
-bool wifiReset = false;
 
 // Time from the web
 const char* NTP_SERVER = "ch.pool.ntp.org";
@@ -98,6 +94,10 @@ const unsigned char* icons_allArray[2] = {
   dog_dog_2
 };
 
+// Wifi manager
+WiFiManager wm;
+bool wifiReset = false;
+
 // interrupt function
 void IRAM_ATTR isr() {
   // check if config mode (both buttons pressed)
@@ -120,11 +120,8 @@ void setup() {
   Serial.begin(115200);
 
   // screen
-  while (!Serial) {
-    delay(100);
-  }
   display.begin(SSD1306_SWITCHCAPVCC, OLED);
-  display.clearDisplay();
+  showMessage(5);
 
   // Wifi manager
   bool res;
@@ -132,11 +129,7 @@ void setup() {
   // set timout (seconds)
   wm.setTimeout(180);
 
-
   res = wm.autoConnect("Pills-dispenser","yourPassword"); // password protected ap
-
-  // icon (animation)
-  animator(1);
 
   if(!res) {
     Serial.println("Failed to connect and hit timeout -> will restart in 5 sec");
@@ -150,6 +143,9 @@ void setup() {
     wifiReset = false;
     showMessage(0);
   }
+
+  // icon (animation)
+  animator(1);
 
   // Get Time on the internet
   configTime(0, 0, NTP_SERVER);
@@ -299,6 +295,7 @@ void loop() {
     // config mode
     Serial.println("config mode (let you reset wifi credentials)");
     showMessage(2);
+    delay(250);
     do {
       // reset yes
       plusBtnState = digitalRead(plusBtn);
@@ -574,6 +571,11 @@ void showMessage(int msgNumber) {
       display.invertDisplay(1);
       msgText = "Canceled";
       msgLegend = "";
+      breakTime = 2000;
+      break;
+    case 5:
+      msgText = "Try to connect...";
+      msgLegend = "WIFI";
       breakTime = 2000;
       break;
   }
